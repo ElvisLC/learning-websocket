@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elvis Chat 💬</title>
+    <style>
+        /* Reset & Base minimalista */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #fafafa;
+            color: #18181b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        /* Título en tipografía sobria con espaciado */
+        h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 24px;
+            color: #18181b;
+            text-align: center;
+        }
+
+        /* Contenedor principal tipo Notion */
+        .chat-section {
+            background-color: #ffffff;
+            border: 1px solid #e4e4e7;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 550px;
+            height: 550px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Contenedor de conversación */
+        #chat-container {
+            flex-grow: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        /* Estilo minimalista de mensajes */
+        .message {
+            max-width: 80%;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            word-break: break-word;
+            border-radius: 8px;
+            animation: fadeIn 0.15s ease-out;
+        }
+
+        /* Mensajes propios (Enviados) - Bloque oscuro y limpio */
+        .message.sent {
+            align-self: flex-end;
+            background-color: #18181b;
+            color: #ffffff;
+            border-bottom-right-radius: 2px;
+        }
+
+        /* Mensajes recibidos - Caja clara con borde sutil */
+        .message.received {
+            align-self: flex-start;
+            background-color: #ffffff;
+            border: 1px solid #e4e4e7;
+            color: #18181b;
+            border-bottom-left-radius: 2px;
+        }
+
+        /* Mensajes del sistema */
+        .message.system {
+            align-self: center;
+            background: transparent;
+            color: #71717a;
+            font-size: 0.75rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            text-align: center;
+            max-width: 90%;
+            padding: 2px 8px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Formulario inferior */
+        #chat-form {
+            display: flex;
+            padding: 16px 24px 24px 24px;
+            background-color: #ffffff;
+            border-top: 1px solid #f4f4f5;
+            gap: 12px;
+        }
+
+        /* Campo de texto minimalista */
+        #message {
+            flex-grow: 1;
+            border: 1px solid #e4e4e7;
+            padding: 10px 14px;
+            outline: none;
+            background-color: #ffffff;
+            color: #18181b;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        #message:focus {
+            border-color: #18181b;
+        }
+
+        #message::placeholder {
+            color: #a1a1aa;
+        }
+
+        /* Botón de bloque plano negro */
+        #chat-form button {
+            border: none;
+            padding: 0 18px;
+            outline: none;
+            background-color: #18181b;
+            color: #ffffff;
+            font-weight: 500;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+        }
+
+        #chat-form button:hover {
+            background-color: #27272a;
+        }
+
+        #chat-form button:active {
+            background-color: #09090b;
+        }
+
+        /* Scrollbar personalizado y fino */
+        #chat-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #chat-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #chat-container::-webkit-scrollbar-thumb {
+            background: #e4e4e7;
+            border-radius: 2px;
+        }
+
+        #chat-container::-webkit-scrollbar-thumb:hover {
+            background: #d4d4d8;
+        }
+    </style>
+</head>
+<script type="module">
+    import { io } from "https://cdn.socket.io/4.8.3/socket.io.esm.min.js";
+
+    const socket = io();
+
+    const chatContainer = document.getElementById('chat-container');
+    const chatForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('message');
+
+    socket.on('connect', () => {
+        appendSystemMessage("Conectado al servidor de chat 🟢");
+    });
+
+    socket.on('disconnect', () => {
+        appendSystemMessage("Conexión perdida con el servidor 🔴");
+    });
+
+    socket.on('chat message', (msg) => {
+        // Mostrar mensaje si lo recibimos de otro socket
+        if (msg.socketId !== socket.id) {
+            appendMessage(msg.text, false);
+        }
+    });
+
+    function appendMessage(text, isSent) {
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message');
+        messageElement.classList.add(isSent ? 'sent' : 'received');
+        messageElement.textContent = text;
+        chatContainer.appendChild(messageElement);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function appendSystemMessage(text) {
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', 'system');
+        messageElement.textContent = text;
+        chatContainer.appendChild(messageElement);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    chatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        // Mostrar nuestro propio mensaje de inmediato en pantalla (UX rápida)
+        appendMessage(text, true);
+        
+        // Enviar por Socket.IO al servidor
+        socket.emit('chat message', { text: text, socketId: socket.id });
+
+        messageInput.value = '';
+    });
+</script>
+
+<body>
+    <h1>Elvis chat </h1>
+
+    <section class="chat-section">
+        <div id="chat-container">
+            <div class="message system">Bienvenido al chat de Elvis</div>
+        </div>
+
+        <form id="chat-form">
+            <input type="text" id="message" autocomplete="off" placeholder="Escribe un mensaje..." required />
+            <button type="submit">Enviar</button>
+        </form>
+    </section>
+
+
+</body>
+
+</html>
